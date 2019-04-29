@@ -71,6 +71,8 @@ volatile bool bt_Mode = true;
 bool check_online_mode = false; // to return to online mode when press the back button
 bool interrupt_check1 = false;
 bool interrupt_check2 = false;
+
+bool sahoo = false;
 /////////////////////////////
 
 
@@ -234,7 +236,7 @@ void loop() {
 
 
 
-//////////////////////////////////////////////////  INTERRUPT Functions  ///////////////////////////
+//////////////////////////////////////////////////  INTERRUPT SERVICE ROUTINE Functions  ///////////////////////////
 
 void ISR_backButton() {
 
@@ -251,6 +253,7 @@ void ISR_backButton() {
 void ISR_offlineButton() {
 
   if (bt_Mode) {
+    startWork = false;
     bt_Mode = false; // to switch from online to offline
     interrupt_check1 = true; // to activate the printing Function (offline_screen_printing()).
   } else {
@@ -280,6 +283,7 @@ void online_screen_printing() {
 
   firstTashahod = false;
   finalTashahod = false;
+  sahoo = false;
 
   bigCounter = 0;
   bowingCounter_start = true;
@@ -304,6 +308,7 @@ void offline_screen_printing() {
 
   firstTashahod = false;
   finalTashahod = false;
+  sahoo = false; 
 
   bigCounter = 0;
   bowingCounter_start = true;
@@ -317,7 +322,7 @@ void salat_Name_Printing(String name) {
 
   lcd.clear();
   lcd.print("Salat");
-  lcd.setCursor(0, 1);
+  lcd.setCursor(0,1);
   lcd.print(name);
   delay(4000);
   lcd.clear();
@@ -326,6 +331,68 @@ void salat_Name_Printing(String name) {
   lcd.print("Done Rakah: 0/");
   lcd.print(rakahNum);
 
+}
+
+void check_sahoo(){
+
+  if(sahoo){ // Initialization
+          delay(3000);
+          bool prost1 = false;
+          bool sitting = false;
+          bool prost2 = false;
+          
+         /// printing
+          lcd.clear();
+          lcd.setCursor(3,0);
+          lcd.print("Saho");
+
+          // to make the word sahoo blinking in the LCD
+          for(int i = 1; i <= 4 ; i++){
+            lcd.noDisplay();
+            delay(500);
+            lcd.display();
+            delay(500);
+          }
+
+         lcd.setCursor(0,1);
+         lcd.print("Prost1    Ps:0/2");
+         
+         while(sahoo){ // Begin to detect sahoo postures
+          fsr3 = analogRead(s3);
+          fsr2 = analogRead(s2);
+          
+          // sahoo prostration 1
+          if(fsr3 > 100 && prost1 == false){
+            prost1 = true;
+          }
+
+          // sahoo sitting
+          if(fsr3 < 100 && prost1 == true && sitting == false){
+            
+            lcd.setCursor(0,1);
+            lcd.print("Sitting   Ps:1/2");
+            delay(3000); // time for the user to sit
+            
+            if(fsr2 > 100){
+              /// printing
+              lcd.setCursor(0,1);
+              lcd.print("Prost2  ");
+              sitting = true;
+            }
+          }
+
+          // sahoo prostration 2
+          if(sitting && fsr3 > 100 && prost2 == false){
+            prost2 = true;
+          }
+
+          if(prost1 && prost2 && fsr3 < 100){
+            sahoo = false;
+            lcd.setCursor(0,1);
+            lcd.print("Saho Done Ps:2/2");
+          }
+        }
+      }
 }
 
 
@@ -344,14 +411,17 @@ void fourRakahPrayer() {
   if (fsr1 > 100 && (standing == false) && (fsr3 < 100) && (distanceSensor == 0) && (fsr2 < 100) ) {
 
     if (bigCounter == 2 && firstTashahod == false) {         // we add these if statments to prevent printing "Bowing" if the user skip tashhood 1 OR 2
-      // do nothing
+      // to detect sahoo
+      sahoo = true;
+      Serial.println(" ----------------------------------------------------- T1 Sahooo");
     } else if (bigCounter == 4 && finalTashahod == false) {
-      // do nothing
+      // to detect sahoo
+      sahoo = true;
+      Serial.println(" ----------------------------------------------------- T2 Sahooo");
     } else {
-      delay(3000);
+      delay(4000);
       standing = true;
       lcd.setCursor(0, 0);
-      delay(3000);
       lcd.print("Bowing          ");
       //Serial.println(" ----------------------------------------------------- Standing Done");
     }
@@ -361,23 +431,28 @@ void fourRakahPrayer() {
 
   // bowing detection
 
-  if ( standing && (distanceSensor < 100 && distanceSensor != 0) && (fsr3 < 100) && (bowing == false) ) {
+if ( standing && (distanceSensor < 100 && distanceSensor != 0) && (bowing == false) ) {
 
     // start counter to check wether the person bowing or directly prostrating
     if (bowingCounter_start) {
-      bowingCounter.start(1500);
+      bowingCounter.start(3000);
       bowingCounter_start = false;
     }
 
     if (bowingCounter.isFinished()) {
-      if (!prost1) { // to ensure that the user is not prostrating.
-        lcd.setCursor(0, 0);
-        lcd.print("Prost     Ps:0/2");
-        bowing = true;
-        //Serial.println(" ----------------------------------------------------- Bowing Done");
+      if (fsr3 < 100 && fsr2 < 100) { // to ensure that the user is not prostrating.
+           lcd.setCursor(0, 0);
+           lcd.print("Prost     Ps:0/2");
+           bowing = true;
+           //Serial.println(" ----------------------------------------------------- Bowing Done");
+      }else{
+        sahoo = true;
+        bowingCounter_start = true;
+        Serial.println(" ----------------------------------------------------- bow Sahooo");
       }
     }
   }
+
 
   //////////////////////////////////////////////////////
 
@@ -395,7 +470,7 @@ void fourRakahPrayer() {
   if (prost1 && fsr3 < 100 && (sitting == false) ) {
 
     if (sittingCounter_start) {
-      sittingCounter.start(3000);
+      sittingCounter.start(4000);
       sittingCounter_start = false;
       lcd.setCursor(0, 0);
       lcd.print("sitting   Ps:1/2");
@@ -409,6 +484,8 @@ void fourRakahPrayer() {
         //Serial.println(" ----------------------------------------------------- Sitting Done");
       } else {
         sittingCounter_start = true;
+        sahoo = true;
+        Serial.println(" -----------------------------------------------------Sit Sahooo");
       }
     }
   }
@@ -426,16 +503,18 @@ void fourRakahPrayer() {
 
     delay(2000);
     if (bigCounter == 1) {
-      lcd.setCursor(0, 0);
+      lcd.setCursor(0,0);
       lcd.print("Tashahod1 Ps:2/2");
+      delay(2000);
     }
     else if (bigCounter == 3) {
       lcd.setCursor(0, 0);
       lcd.print("Tashahod2 Ps:2/2");
+      delay(2000);
     }
     else {
       // Serial.println("11111111111111");
-      lcd.setCursor(0, 0);
+      lcd.setCursor(0,0);
       lcd.print("Standing        ");
       delay(3000);
     }
@@ -446,7 +525,6 @@ void fourRakahPrayer() {
   // Frist Tashahod
 
   if ( bigCounter == 2  && firstTashahod == false && fsr3 < 100) {
-
 
     if (fsr2 > 100) {
       firstTashahod = true;
@@ -462,10 +540,13 @@ void fourRakahPrayer() {
   // Final Tashahod
 
   if ( bigCounter == 4  && finalTashahod == false && fsr3 < 100) {
-    delay(1000);
+    delay(4000);
 
     if (fsr2 > 100) {
 
+      finalTashahod = true;
+      check_sahoo(); // check weather the user should perform sahoo OR not
+      
       delay(5000);
       lcd.clear();
       lcd.setCursor(2, 0);
@@ -524,11 +605,6 @@ void fourRakahPrayer() {
 
 void threeRakahPrayer() {
 
-  //    key3Reading = digitalRead(key3);
-  //
-  //    if(!key3Reading){
-  //      startWork = false;
-  //    }
   // read the actual data from the FSRs and the Ultrasound sensor
   fsr1 = analogRead(s1);
   fsr2 = analogRead(s2);
@@ -537,18 +613,19 @@ void threeRakahPrayer() {
   //Serial.println(distanceSensor);
 
   //standing
-  // for tashaood
+                                                                                   // for tashaood
   if (fsr1 > 100 && (standing == false) && (fsr3 < 100) && (distanceSensor == 0) && (fsr2 < 100) ) {
 
     if (bigCounter == 2 && firstTashahod == false) {         // we add these if statments to prevent printing "Bowing" if the user skip
       // do nothing
+      sahoo = true;
     } else if (bigCounter == 3 && finalTashahod == false) {
       // do nothing
+      sahoo = true;
     } else {
-      delay(3000); // to delay printing "Bowing" after standing from the tashahood
+      delay(4000); // to delay printing "Bowing" after standing from the tashahood
       standing = true;
       lcd.setCursor(0, 0);
-      delay(3000);
       lcd.print("Bowing          ");
       //Serial.println(" ----------------------------------------------------- Standing Done");
     }
@@ -560,21 +637,24 @@ void threeRakahPrayer() {
   ////////////////////////////////////////////////////
 
   // bowing detection
-  // detect pros
-  if ( standing && (distanceSensor < 100 && distanceSensor != 0) && (fsr3 < 100) && (bowing == false) ) {
+  if ( standing && (distanceSensor < 100 && distanceSensor != 0) && (bowing == false) ) {
 
     // start counter to check wether the person bowing or directly prostrating
     if (bowingCounter_start) {
-      bowingCounter.start(1500);
+      bowingCounter.start(3000);
       bowingCounter_start = false;
     }
 
     if (bowingCounter.isFinished()) {
-      if (!prost1) { // to ensure that the user is not prostrating.
-        lcd.setCursor(0, 0);
-        lcd.print("Prost     Ps:0/2");
-        bowing = true;
-        //Serial.println(" ----------------------------------------------------- Bowing Done");
+      if (fsr3 < 100 && fsr2 < 100) { // to ensure that the user is not prostrating.
+           lcd.setCursor(0, 0);
+           lcd.print("Prost     Ps:0/2");
+           bowing = true;
+           //Serial.println(" ----------------------------------------------------- Bowing Done");
+      }else{
+        sahoo = true;
+        bowingCounter_start = true;
+        Serial.println(" ----------------------------------------------------- bow Sahooo");
       }
     }
   }
@@ -610,6 +690,7 @@ void threeRakahPrayer() {
         //Serial.println(" ----------------------------------------------------- Sitting Done");
       } else {
         sittingCounter_start = true;
+        sahoo= true;
       }
     }
   }
@@ -628,12 +709,14 @@ void threeRakahPrayer() {
     delay(2000);
     if (bigCounter == 1) {
       lcd.setCursor(0, 0);
-      lcd.print("Tashahod1 Ps:2/2"); // هنا في خطأانه رايح يطبع بوينق اللي في شرط الستاند اذا سحب على التشاهد
-
+      lcd.print("Tashahod1 Ps:2/2"); 
+      delay(2000);
+      
     } else if (bigCounter == 2) {
       lcd.setCursor(0, 0);
       lcd.print("Tashahod2 Ps:2/2");
-
+      delay(2000);
+      
     } else {
       lcd.setCursor(0, 0);
       lcd.print("standing        ");
@@ -661,11 +744,13 @@ void threeRakahPrayer() {
   // Final Tashahod
 
   if ( bigCounter == 3  && finalTashahod == false && fsr3 < 100) {
-    delay(6000);
+    delay(4000);
 
     if (fsr2 > 100) {
       finalTashahod = true;
-      delay(4000);
+
+      check_sahoo(); // check weather the user should perform sahoo OR not 
+      delay(5000);
       lcd.clear();
       lcd.setCursor(2, 0);
       lcd.print("Completed");
@@ -673,15 +758,9 @@ void threeRakahPrayer() {
       lcd.print("Prayer");
       delay(5000);
       ISR_backButton();  // we call this function since it does the same purpose that we need here.
-      //        startWork = false;
-      //        lcd.clear();
-      //        lcd.print("Choose Num Rakah");
-      //        lcd.setCursor(3,1);
-      //        lcd.print(rakahNum);
-      //        bigCounter = 0;
-      //       firstTashahod = false;
+      
       if (check_online_mode) {
-      BT.write("4");
+        BT.write("4");
       }
     }
   }
@@ -717,17 +796,18 @@ void twoRakahPrayer() {
   fsr2 = analogRead(s2);
   fsr3 = analogRead(s3);
   distanceSensor = disSensor.ping_cm();
-  Serial.println(distanceSensor);
-  //standing
-
+  
+  //standing                                                                        // for tashood
   if (fsr1 > 100 && (standing == false) && (fsr3 < 100) && (distanceSensor == 0) && (fsr2 < 100) ) {
 
     if (bigCounter == 2  && finalTashahod == false) {
       //do nothing
+      Serial.println(" -----------------------------------------------------Tashahood sahoo");
+      sahoo = true;
     } else {
       standing = true;
       lcd.setCursor(0, 0);
-      delay(3000);
+      delay(4000);
       lcd.print("Bowing          ");
       //Serial.println(" ----------------------------------------------------- Standing Done");
     }
@@ -737,20 +817,24 @@ void twoRakahPrayer() {
 
   // bowing detection
 
-  if ( standing && (distanceSensor < 100 && distanceSensor != 0) && (fsr3 < 100) && (bowing == false) ) {
+  if ( standing && (distanceSensor < 100 && distanceSensor != 0) && (bowing == false) ) {
 
     // start counter to check wether the person bowing or directly prostrating
     if (bowingCounter_start) {
-      bowingCounter.start(1500);
+      bowingCounter.start(3000);
       bowingCounter_start = false;
     }
 
     if (bowingCounter.isFinished()) {
-      if (!prost1) { // to ensure that the user is not prostrating.
-        lcd.setCursor(0, 0);
-        lcd.print("Prost     Ps:0/2");
-        bowing = true;
-        //Serial.println(" ----------------------------------------------------- Bowing Done");
+      if (fsr3 < 100 && fsr2 < 100) { // to ensure that the user is not prostrating.
+           lcd.setCursor(0, 0);
+           lcd.print("Prost     Ps:0/2");
+           bowing = true;
+           //Serial.println(" ----------------------------------------------------- Bowing Done");
+      }else{
+        sahoo = true;
+        bowingCounter_start = true;
+        Serial.println(" ----------------------------------------------------- bowing Sahooo");
       }
     }
   }
@@ -763,12 +847,6 @@ void twoRakahPrayer() {
     prost1 = true;
   }
 
-  //  if(bowing && fsr3 < 100 && (prost1 == true)){
-  //      lcd.setCursor(0,0);
-  //      lcd.print("sitting   Ps:1/2");
-  //      //Serial.println(" ----------------------------------------------------- Prost 1 Done");
-  //    }
-
   ///////////////////////////////////////////////////////
 
   // sitting detection
@@ -776,7 +854,7 @@ void twoRakahPrayer() {
   if (prost1 && fsr3 < 100 && (sitting == false) ) {
 
     if (sittingCounter_start) {
-      sittingCounter.start(3000);
+      sittingCounter.start(4000);
       sittingCounter_start = false;
       lcd.setCursor(0, 0);
       lcd.print("sitting   Ps:1/2");
@@ -790,6 +868,8 @@ void twoRakahPrayer() {
         //Serial.println(" ----------------------------------------------------- Sitting Done");
       } else {
         sittingCounter_start = true;
+        Serial.println(" ----------------------------------------------------- Stitting Sahooo");
+        sahoo = true;
       }
     }
   }
@@ -810,7 +890,7 @@ void twoRakahPrayer() {
     if (bigCounter == 1) {
       lcd.setCursor(0, 0);
       lcd.print("Tashahod  Ps:2/2");
-
+      delay(2000);
     } else {
       lcd.setCursor(0, 0);
       lcd.print("standing        ");
@@ -837,10 +917,11 @@ void twoRakahPrayer() {
   // Final Tashahod
 
   if ( bigCounter == 2  && finalTashahod == false && fsr3 < 100) {
-    delay(1000);
+    delay(4000);
 
     if (fsr2 > 100) {
-      // finalTashahod = true;
+      finalTashahod = true;
+      check_sahoo(); // check weather the user should perform sahoo OR not
       delay(5000);
       lcd.clear();
       lcd.setCursor(2, 0);
@@ -850,12 +931,6 @@ void twoRakahPrayer() {
       delay(5000);
 
       ISR_backButton();  // we call this function since it does the same purpose that we need here.
-      //        startWork = false;
-      //        lcd.clear();
-      //        lcd.print("Choose Num Rakah");
-      //        lcd.setCursor(3,1);
-      //        lcd.print(rakahNum);
-      //        bigCounter = 0;
       
       if (check_online_mode) {
       BT.write("1");
@@ -877,8 +952,6 @@ void twoRakahPrayer() {
     bowingCounter_start = true;
     sittingCounter_start = true;
 
-    //    lcd.setCursor(0,0);
-    //    lcd.print("Complete Rakah  ");
     lcd.setCursor(12, 1);
     lcd.print(bigCounter);
 
